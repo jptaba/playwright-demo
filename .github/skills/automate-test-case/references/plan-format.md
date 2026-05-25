@@ -22,7 +22,7 @@ can parse it unambiguously.
 
 #### <N.M>. <scenario-name-in-kebab-case>
 
-**File:** `tests/<group>/<scenario-name-in-kebab-case>.spec.ts`
+**File:** `tests/specs/<group>/<scenario-name-in-kebab-case>.spec.ts`
 
 **Steps:**
 
@@ -80,7 +80,7 @@ SauceDemo is a login-gated storefront. This plan covers successful login behavio
 
 #### 1.1. should-login-standard-user
 
-**File:** `tests/auth/should-login-standard-user.spec.ts`
+**File:** `tests/specs/auth/should-login-standard-user.spec.ts`
 
 **Steps:**
 

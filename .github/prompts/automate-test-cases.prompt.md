@@ -95,7 +95,7 @@ Return one block per test case:
 TEST CASE: <scenario-name>
 Decision:   SKIP | EXTEND | CREATE
 Plan:       specs/<feature>.plan.md  (created | updated | skipped)
-Spec:       tests/<group>/<scenario>.spec.ts  (created | skipped)
+Spec:       tests/specs/<group>/<scenario>.spec.ts  (created | skipped)
 Page Objects:
   - tests/pages/<name>.page.ts  (created | extended | reused)
 Test Data:

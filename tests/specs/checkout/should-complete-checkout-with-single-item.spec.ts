@@ -1,7 +1,7 @@
 // spec: specs/saucedemo-checkout.plan.md
 // seed: tests/seed.spec.ts
-import { expect, test, urlPatterns } from '../fixtures';
-import { checkoutCustomer, checkoutItem } from '../data/checkout';
+import { expect, test, urlPatterns } from '../../fixtures';
+import { checkoutCustomer, checkoutItem } from '../../data/checkout';
 
 test.describe('Checkout', () => {
   test('should-complete-checkout-with-single-item @smoke', async ({

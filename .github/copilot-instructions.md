@@ -86,8 +86,9 @@ See `.github/skills/automate-test-case/references/mcp-exploration.md` for full u
 | `tests/data/`                        | Test data (`users.ts`, `checkout.ts`, …)                                                     |
 | `tests/pages/auth/`                  | Auth page objects (`login.page.ts`)                                                          |
 | `tests/pages/checkout/`              | Checkout page objects (`checkout.page.ts`)                                                   |
-| `tests/auth/`                        | Auth spec files                                                                              |
-| `tests/checkout/`                    | Checkout spec files                                                                          |
+| `tests/specs/auth/`                  | Auth spec files                                                                              |
+| `tests/specs/checkout/`              | Checkout spec files                                                                          |
+| `tests/specs/inventory/`             | Inventory spec files                                                                         |
 | `specs/`                             | Official plan files (`*.plan.md`)                                                            |
 | `.github/skills/automate-test-case/` | Orchestration skill + references                                                             |
 | `.github/prompts/`                   | User-facing prompt entry points                                                              |

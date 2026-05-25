@@ -1,7 +1,7 @@
 // spec: specs/saucedemo-checkout.plan.md
 // seed: tests/seed.spec.ts
-import { expect, test, urlPatterns } from '../fixtures';
-import { checkoutItem, checkoutSecondItem } from '../data/checkout';
+import { expect, test, urlPatterns } from '../../fixtures';
+import { checkoutItem, checkoutSecondItem } from '../../data/checkout';
 
 test.describe('Checkout', () => {
   test('should-readd-removed-item-with-second-item', async ({

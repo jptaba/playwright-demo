@@ -8,7 +8,7 @@ Rules and patterns for generating Playwright TypeScript test files in this repos
 
 | What           | Where                                                        |
 | -------------- | ------------------------------------------------------------ |
-| Spec file      | `tests/<group>/<scenario-name>.spec.ts`                      |
+| Spec file      | `tests/specs/<group>/<scenario-name>.spec.ts`                |
 | Page object    | `tests/pages/<domain>/<page-name>.page.ts`                   |
 | Test data      | `tests/data/<domain>.ts`                                     |
 | Helper utility | `tests/helpers/index.ts`                                     |
@@ -27,8 +27,8 @@ Page objects MUST be organized by domain — never place new page objects at the
 ```ts
 // spec: specs/<feature>.plan.md
 // seed: tests/seed.spec.ts
-import { test, expect, urlPatterns } from '../fixtures';
-import { <data> } from '../data/<domain>';
+import { test, expect, urlPatterns } from '../../fixtures';
+import { <data> } from '../../data/<domain>';
 
 test.describe('<FeatureGroup>', () => {
   test('<scenario-name> @smoke', {
@@ -62,11 +62,11 @@ Tag tests with `@smoke` when they cover the critical happy path.
 
 ## Import rules
 
-| Item             | Import from                                                |
-| ---------------- | ---------------------------------------------------------- |
-| `test`, `expect` | `'../fixtures'` — never from `'@playwright/test'` directly |
-| Page objects     | `'../pages/<domain>/<name>.page'`                          |
-| Test data        | `'../data/<domain>'`                                       |
+| Item             | Import from                                                   |
+| ---------------- | ------------------------------------------------------------- |
+| `test`, `expect` | `'../../fixtures'` — never from `'@playwright/test'` directly |
+| Page objects     | `'../../pages/<domain>/<name>.page'`                          |
+| Test data        | `'../../data/<domain>'`                                       |
 
 ---
 

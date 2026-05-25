@@ -13,7 +13,7 @@ and complete a checkout flow. This plan covers a successful purchase from a clea
 
 #### 1.1. should-complete-checkout-with-single-item
 
-**File:** `tests/checkout/should-complete-checkout-with-single-item.spec.ts`
+**File:** `tests/specs/checkout/should-complete-checkout-with-single-item.spec.ts`
 
 **Steps:**
 
@@ -32,7 +32,7 @@ and complete a checkout flow. This plan covers a successful purchase from a clea
 
 #### 1.2. should-readd-removed-item-with-second-item
 
-**File:** `tests/checkout/should-readd-removed-item-with-second-item.spec.ts`
+**File:** `tests/specs/checkout/should-readd-removed-item-with-second-item.spec.ts`
 
 **Steps:**
 

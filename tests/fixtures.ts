@@ -3,6 +3,7 @@ import { frameworkEnv } from './support/env';
 import { urlPatterns } from './support/config';
 import { LoginPage } from './pages/auth/login.page';
 import { CheckoutPage } from './pages/checkout/checkout.page';
+import { InventoryPage } from './pages/inventory/inventory.page';
 import { users } from './data/users';
 
 export { expect };
@@ -11,6 +12,7 @@ export { urlPatterns } from './support/config';
 export const test = baseTest.extend<{
   loginPage: LoginPage;
   checkoutPage: CheckoutPage;
+  inventoryPage: InventoryPage;
 }>({
   page: async ({ page }, use) => {
     await page.goto(frameworkEnv.baseUrl);
@@ -35,5 +37,17 @@ export const test = baseTest.extend<{
       await page.waitForURL(urlPatterns.inventory);
     }
     await use(new CheckoutPage(page));
+  },
+  inventoryPage: async ({ page }, use) => {
+    if (!page.url().includes('/inventory')) {
+      const lp = new LoginPage(page);
+      await lp.fillCredentials(
+        users.standard.username,
+        users.standard.password,
+      );
+      await lp.submit();
+      await page.waitForURL(urlPatterns.inventory);
+    }
+    await use(new InventoryPage(page));
   },
 });

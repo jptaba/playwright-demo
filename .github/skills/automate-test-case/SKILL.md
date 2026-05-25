@@ -216,13 +216,13 @@ If extending an existing page object:
 
 ### 5d. Spec file
 
-Create `tests/<group>/<scenario-name>.spec.ts` following this exact structure:
+Create `tests/specs/<group>/<scenario-name>.spec.ts` following this exact structure:
 
 ```ts
 // spec: specs/<feature>.plan.md
 // seed: tests/seed.spec.ts
-import { test, expect, urlPatterns } from '../fixtures';
-import { <data> } from '../data/<domain>';
+import { test, expect, urlPatterns } from '../../fixtures';
+import { <data> } from '../../data/<domain>';
 
 test.describe('<FeatureGroup>', () => {
   test('<scenario-name> @smoke', {
@@ -250,7 +250,7 @@ This clears the project-level storageState so the test starts at the unauthentic
 
 Rules:
 
-- Import `test`, `expect`, and `urlPatterns` from `'../fixtures'` — never from `'@playwright/test'`
+- Import `test`, `expect`, and `urlPatterns` from `'../../fixtures'` — never from `'@playwright/test'`
 - One `test(...)` per file; always wrap in `test.describe`
 - Do not call `page.goto(...)` — the fixture already navigates to `baseUrl`
 - For authenticated tests, storageState is already applied via the project config
@@ -282,7 +282,7 @@ known from existing page objects and spec files.
 Run the new test in isolation:
 
 ```bash
-npm run test:e2e -- tests/<group>/<scenario>.spec.ts
+npm run test:e2e -- tests/specs/<group>/<scenario>.spec.ts
 ```
 
 Or use the `runTests` tool with the specific file path.
@@ -339,7 +339,7 @@ For each test case, emit this block:
 TEST CASE: <scenario-name>
 Decision:   SKIP | EXTEND | CREATE
 Plan:       specs/<feature>.plan.md  (created | updated | skipped)
-Spec:       tests/<group>/<scenario>.spec.ts  (created | skipped)
+Spec:       tests/specs/<group>/<scenario>.spec.ts  (created | skipped)
 Page Objects:
   - tests/pages/<name>.page.ts  (created | extended | reused)
 Test Data:

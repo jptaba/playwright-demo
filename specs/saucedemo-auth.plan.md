@@ -12,7 +12,7 @@ SauceDemo is a login-gated storefront where authenticated users can browse inven
 
 #### 1.1. should-login-standard-user
 
-**File:** `tests/auth/should-login-standard-user.spec.ts`
+**File:** `tests/specs/auth/should-login-standard-user.spec.ts`
 
 **Steps:**
 

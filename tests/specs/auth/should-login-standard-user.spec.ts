@@ -1,7 +1,7 @@
 // spec: specs/saucedemo-auth.plan.md
 // seed: tests/seed.spec.ts
-import { test, expect, urlPatterns } from '../fixtures';
-import { users } from '../data/users';
+import { test, expect, urlPatterns } from '../../fixtures';
+import { users } from '../../data/users';
 
 test.describe('Authentication', () => {
   // Clear storageState so this test always exercises the real login flow.

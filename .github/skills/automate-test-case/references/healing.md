@@ -33,7 +33,7 @@ Re-run result: PASS | FAIL
 Run the failing test in isolation first:
 
 ```bash
-npm run test:e2e -- tests/<group>/<scenario>.spec.ts
+npm run test:e2e -- tests/specs/<group>/<scenario>.spec.ts
 ```
 
 Collect:
@@ -106,7 +106,7 @@ await checkoutPage.addItemToCart(item);
 ## Step 5 — Re-run and check
 
 ```bash
-npm run test:e2e -- tests/<group>/<scenario>.spec.ts
+npm run test:e2e -- tests/specs/<group>/<scenario>.spec.ts
 ```
 
 - If PASS: proceed to typecheck and spec reconciliation
