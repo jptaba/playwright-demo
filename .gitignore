@@ -2,6 +2,5 @@ node_modules/
 artifacts/
 playwright-report/
 test-results/
-.playwright-cli/
 dist/
 .env

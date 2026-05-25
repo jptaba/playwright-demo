@@ -1,13 +1,13 @@
 // spec: specs/saucedemo-auth.plan.md
 // seed: tests/seed.spec.ts
-import { test, expect } from '../fixtures';
+import { test, expect, urlPatterns } from '../fixtures';
 import { users } from '../data/users';
-import { LoginPage } from '../pages/login.page';
 
 test.describe('Authentication', () => {
-  test('should-login-standard-user @smoke', async ({ page }) => {
-    const loginPage = new LoginPage(page);
+  // Clear storageState so this test always exercises the real login flow.
+  test.use({ storageState: { cookies: [], origins: [] } });
 
+  test('should-login-standard-user @smoke', async ({ page, loginPage }) => {
     // 1. Fill username with standard_user.
     // 2. Fill password with secret_sauce.
     await loginPage.fillCredentials(
@@ -21,7 +21,7 @@ test.describe('Authentication', () => {
 
     // 3. Submit the login form.
     await loginPage.submit();
-    await expect(page).toHaveURL(/\/inventory\.html/);
+    await expect(page).toHaveURL(urlPatterns.inventory);
     await expect(page.getByText('Products')).toBeVisible();
   });
 });

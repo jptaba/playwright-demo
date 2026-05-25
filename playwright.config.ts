@@ -1,5 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 import { config as loadEnv } from 'dotenv';
+import { authStorageState } from './tests/support/config';
 
 loadEnv({ quiet: true });
 
@@ -33,17 +34,32 @@ export default defineConfig({
     navigationTimeout: 30_000,
   },
   projects: [
+    // Auth state generation — logs in once, writes storageState to artifacts/auth/.
+    // Browser projects depend on this so the state file is ready before any spec runs.
+    // For apps that persist auth in cookies or localStorage, storageState fully handles
+    // authentication and no manual login is needed in specs.
+    // SauceDemo uses in-memory React state (no persistent storage), so the
+    // checkoutPage fixture falls back to explicit login when storageState has no effect.
+    {
+      name: 'setup',
+      testMatch: 'tests/setup/global.setup.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
+
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], storageState: authStorageState },
+      dependencies: ['setup'],
     },
     {
       name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
+      use: { ...devices['Desktop Firefox'], storageState: authStorageState },
+      dependencies: ['setup'],
     },
     {
       name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
+      use: { ...devices['Desktop Safari'], storageState: authStorageState },
+      dependencies: ['setup'],
     },
   ],
 });

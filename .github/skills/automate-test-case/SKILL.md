@@ -3,406 +3,348 @@ name: automate-test-case
 description: >
   Use when you need a repeatable workflow to automate Playwright test cases.
   Loads project context, detects duplicates and reusable code,
-  then executes the official plan → generate → heal cycle.
+  then executes the repository plan -> generate -> run -> heal cycle using
+  Playwright MCP for live exploration. No CLI agents required.
   Triggers: automate test case, automate these steps, create test for, write test scenario.
 ---
 
-# Automate Test Case — Full Orchestration Workflow
+# Automate Test Case — Full MCP-Native Orchestration Workflow
 
-This skill converts any user-supplied test case (steps, scenarios, or feature description)
-into a validated, passing Playwright TypeScript test. It is designed to be **repeatable**:
-every test case provided in a single prompt is processed through all phases in sequence.
+This skill converts user-supplied test cases into validated Playwright TypeScript tests
+using only `@playwright/test`, `@playwright/mcp`, and VS Code Copilot Agent tools.
+No Playwright CLI agent installation is required or expected.
 
-This file is the authoritative orchestration source for this repository. Prompt files should
-delegate here and avoid duplicating full procedural logic.
+This file is the **authoritative orchestration source** for this repository.
+All prompts and instructions defer to this skill for phase order, decision gates,
+healing behaviour, and constraints.
+
+Reference files in the same folder:
+
+- `references/plan-format.md` — exact format for `specs/*.plan.md` files
+- `references/mcp-exploration.md` — how to use Playwright MCP for live DOM exploration
+- `references/test-generation.md` — code generation patterns and rules
+- `references/healing.md` — heal loop step-by-step guide
 
 ---
 
-## Phase 0 — Load Project Context (ALWAYS first)
+## Phase 0 — Load Project Context (always first)
 
-Before touching any test case, read the following files in parallel to build a complete
-mental model of the project. This must happen once per session, not once per test case.
+Read these files once per session before doing anything else:
 
 ```
-playwright.config.ts          → baseURL, testIdAttribute, browsers, retries, reporters
-tests/fixtures.ts             → fixture design (what state the page is in when tests start)
-tests/seed.spec.ts            → seed test entry point
-tests/support/env.ts          → environment variables and defaults
-tests/data/                   → all existing test data files (users.ts, etc.)
-tests/pages/                  → all existing Page Object classes
-tests/auth/*.spec.ts          → existing auth tests (and other spec directories)
-specs/*.plan.md               → existing plan files
-.claude/skills/playwright-cli/references/spec-driven-testing.md  → official workflow rules
+playwright.config.ts
+tests/fixtures.ts
+tests/seed.spec.ts
+tests/support/env.ts
+tests/data/**
+tests/pages/**
+tests/**/*.spec.ts
+specs/*.plan.md
 ```
 
-Key facts to extract and hold for the session:
+Capture these facts and hold them for later phases:
 
-- `baseUrl` value and how it is overridden
-- `testIdAttribute` value (e.g. `data-test` or `data-testid`)
-- Fixture navigation pattern (does fixtures.ts already call `page.goto`?)
-- List of existing Page Object classes and their public methods/locators
-- List of existing test data exports and their shapes
-- List of existing spec file names and their `test(...)` descriptions
-- List of existing plan files and their covered scenarios
+| Fact                                         | Where                                                                     |
+| -------------------------------------------- | ------------------------------------------------------------------------- |
+| `baseUrl`                                    | `tests/support/env.ts` and `playwright.config.ts`                         |
+| `testIdAttribute`                            | `playwright.config.ts` → `use.testIdAttribute` (`data-test`)              |
+| Fixture auto-navigation                      | `tests/fixtures.ts` → `page.goto(frameworkEnv.baseUrl)` before every test |
+| Test timeout                                 | `playwright.config.ts` → `timeout: 90_000`                                |
+| Existing page objects + their public methods | `tests/pages/*.page.ts`                                                   |
+| Existing test data exports                   | `tests/data/*.ts`                                                         |
+| Existing scenario names                      | `specs/*.plan.md` and `tests/**/*.spec.ts`                                |
 
-Preflight validation gates (must pass before Phase 1):
+**Preflight gates — all must pass before proceeding:**
 
-1. `.github/skills/automate-test-case/SKILL.md` is present
+1. `.github/skills/automate-test-case/SKILL.md` is readable
 2. `tests/seed.spec.ts` exists
 3. `tests/fixtures.ts` exists
-4. Incoming request includes at least one test case
+4. At least one test case is provided by the user
 
-If any gate fails, stop immediately and return:
+On gate failure, stop immediately:
 
 ```
 STATUS: INPUT_ERROR
-Reason: <clear reason>
-Missing: <paths if any>
+Reason: <exact reason>
+Missing: <file paths if applicable>
 ```
 
 ---
 
-## Phase 1 — Parse the Incoming Test Case
+## Phase 1 — Parse Input Test Cases
 
-Accept test cases in any of these formats:
+Accepted input formats:
 
-**Format A — Steps list (most common):**
+- Step list (numbered or bulleted)
+- Gherkin / BDD (`Given / When / Then`)
+- Plain English scenario description
 
-```
-Test Case: Login with locked-out user
-Steps:
-  1. Navigate to the login page
-  2. Enter username "locked_out_user"
-  3. Enter password "secret_sauce"
-  4. Click Login
-  5. Verify error message "Epic sadface: Sorry, this user has been locked out."
-```
+For each test case, extract and record:
 
-**Format B — Gherkin / BDD:**
+1. **Feature area** — the functional domain (auth, checkout, cart, etc.)
+2. **Scenario name** — kebab-case, concise, describing the outcome
+   - Examples: `should-login-standard-user`, `should-complete-checkout-with-single-item`
+3. **Target starting URL** — most cases start at `baseUrl` via the fixture
+4. **Test data entities** — users, products, form values, etc.
+5. **Actions** — ordered list of user interactions
+6. **Expected outcomes** — observable assertions after each action
 
-```
-Given I am on the login page
-When I enter "locked_out_user" and "secret_sauce"
-And I click Login
-Then I should see "Epic sadface: Sorry, this user has been locked out."
-```
-
-**Format C — Plain English:**
-
-```
-Test that a locked-out user cannot log in and sees a specific error message.
-```
-
-**For each test case, extract:**
-
-1. **Feature area** (e.g. authentication, checkout, product listing)
-2. **Scenario name** in kebab-case (e.g. `should-show-error-for-locked-out-user`)
-3. **Target URL / page** inferred from steps or baseUrl
-4. **Actors / test data** — usernames, passwords, product names, quantities, etc.
-5. **Actions** — clicks, fills, navigations, assertions
-6. **Expected outcomes** — assertions mapped from "Verify", "Expect", "Then", "Should"
+If an input is ambiguous, infer the most likely intent from the existing codebase patterns
+and proceed. Do not stop to ask unless the ambiguity would cause incompatible file paths.
 
 ---
 
-## Phase 2 — Duplicate Detection (STOP if duplicate found)
+## Phase 2 — Duplicate Detection
 
-Before generating anything, check for duplicates:
+Before writing any file:
 
-1. **Spec duplicate**: Search `specs/*.plan.md` for a scenario with the same or functionally
-   equivalent name and steps. If found, report the path and stop — do not create a second spec.
+1. Search `specs/*.plan.md` for scenario headings matching the parsed name or its synonyms
+2. Search `tests/**/*.spec.ts` for `test(` or `test.describe(` names matching the scenario
+3. Detect partial overlaps — identify which steps are already covered
 
-2. **Test file duplicate**: Search `tests/**/*.spec.ts` for a `test(...)` call whose
-   description matches or closely overlaps the new scenario. If found, report the path and stop.
-
-3. **Partial coverage**: If an existing test covers a subset of the new scenario's steps,
-   note which steps are already covered. Only create a new test for the uncovered portion,
-   and mention that the existing test provides partial coverage.
-
-**Output when duplicate is found:**
+**Exact duplicate found:**
 
 ```
-⚠ DUPLICATE DETECTED
-Existing spec:  specs/<existing>.plan.md — scenario "<name>"
-Existing test:  tests/<path>/<name>.spec.ts
-Action: No new files created. Reuse or extend the existing test.
+DUPLICATE DETECTED
+Existing spec: <path>
+Existing test: <path>
+Action: No new files created. Returning SKIP.
 ```
+
+**Partial overlap found:**
+Return EXTEND decision and list only the uncovered steps.
+
+**No overlap:** Return CREATE decision.
 
 ---
 
-## Phase 3 — Reuse Detection (minimize duplication)
+## Phase 3 — Reuse Analysis
 
-If no duplicate, scan for reusable components:
+Before generating new code, identify what already exists:
 
-### 3a. Page Objects
+**Page objects** (`tests/pages/`):
 
-For each page/component involved in the test case:
+- Does a page object exist for the target page?
+- Does it expose all methods needed by the new scenario?
+- If a method is missing, can it be added without breaking existing tests?
 
-- Check `tests/pages/` for a matching Page Object class
-- If found: note the class name and relevant methods/locators to reuse
-- If not found: plan to create a new Page Object under `tests/pages/<page-name>.page.ts`
+**Test data** (`tests/data/`):
 
-### 3b. Test Data
+- Does the required user/product/form data already exist?
+- If a new data value is needed, identify the correct file to update
 
-For each data value (user credentials, product names, etc.):
+**Fixtures** (`tests/fixtures.ts`):
 
-- Check `tests/data/` for an existing export that matches
-- If found: note the import path and export name
-- If not found: plan to add the new data to the appropriate file (or create `tests/data/<domain>.ts`)
+- The fixture navigates to `baseUrl` before every test — tests must not duplicate this
+- Do not modify `tests/fixtures.ts` unless explicitly instructed
 
-### 3c. Fixtures
-
-Confirm whether `tests/fixtures.ts` already handles what the test needs at startup.
-If the seed navigates to baseUrl automatically, the test body does not need a `page.goto`.
-
-**Reuse report (always emit before proceeding):**
+Report reuse decisions in plain text before generating:
 
 ```
-REUSE ANALYSIS
-✓ Page Object:  tests/pages/login.page.ts → LoginPage (reuse fill(), submit(), login())
-✗ Page Object:  tests/pages/product.page.ts → does not exist (will create)
-✓ Test Data:    tests/data/users.ts → users.standard (reuse)
-✗ Test Data:    users.lockedOut → missing (will add to tests/data/users.ts)
-✓ Fixture:      tests/fixtures.ts already navigates to baseUrl
+Reuse:
+  LoginPage (tests/pages/auth/login.page.ts) — reuse existing, all methods available
+  users.standard (tests/data/users.ts) — reuse existing
+  CheckoutPage (tests/pages/checkout/checkout.page.ts) — reuse, add assertItemCount method
 ```
 
 ---
 
 ## Phase 4 — Decision Gate
 
-Based on phases 2 and 3, make one of these decisions and state it explicitly:
+Based on phases 2–3, choose exactly one:
 
-| Decision   | Condition                               | Action                                 |
-| ---------- | --------------------------------------- | -------------------------------------- |
-| **SKIP**   | Exact duplicate found                   | Report and stop                        |
-| **EXTEND** | Existing test partially covers scenario | Extend the existing spec and test file |
-| **CREATE** | No duplicate, scenario is genuinely new | Proceed to Phase 5                     |
+| Decision   | Condition                                                                      |
+| ---------- | ------------------------------------------------------------------------------ |
+| **SKIP**   | Exact duplicate exists — no files created                                      |
+| **EXTEND** | Partial coverage — update existing plan/page-object/data, create new spec file |
+| **CREATE** | No overlap — create plan, spec, page object(s), and data as needed             |
 
 ---
 
-## Phase 5 — Create: Plan → Generate → Heal
+## Phase 5 — Implement
 
-Only reached when decision is **CREATE** or **EXTEND**.
+Apply `references/plan-format.md` for plan files and `references/test-generation.md` for code.
 
-### 5.1 Write or Update the Spec File
+### 5a. Plan file
 
-Create `specs/<feature>.plan.md` using the official format from
-`.claude/skills/playwright-cli/references/spec-driven-testing.md`.
+For CREATE: create `specs/<feature-slug>.plan.md` following the exact format in
+`references/plan-format.md`.
 
-Each scenario block must include:
+For EXTEND: open the existing plan file and append a new `####` scenario block.
+Never renumber or remove existing scenarios.
 
-- `**Seed:** tests/seed.spec.ts`
-- `**File:** tests/<group>/<kebab-case-scenario>.spec.ts`
-- Steps at user level with `- expect:` bullets for every assertion
+### 5b. Test data
 
-If the plan file for this feature already exists, append the new scenario to it.
+If new data is needed:
 
-### 5.2 Add Missing Test Data
+- Add to the appropriate file in `tests/data/`
+- Follow the `as const` export pattern
+- Use descriptive, non-hardcoded names
 
-If Phase 3 found missing test data, add it now before generating the test:
+Never put raw strings for test data inside spec files.
 
-- Open `tests/data/<domain>.ts`
-- Add the new export or extend the existing object
-- Example: add `lockedOut: { username: 'locked_out_user', password: 'secret_sauce' }` to `users`
+### 5c. Page objects
 
-### 5.3 Create Missing Page Objects
+If a new page is involved:
 
-If Phase 3 found a missing Page Object, create `tests/pages/<page-name>.page.ts`:
+1. Use Playwright MCP (see `references/mcp-exploration.md`) to discover `data-test` values
+2. Map every interactive element to a locator using the selector priority order
+3. Create `tests/pages/<domain>/<page-name>.page.ts` using the template in `references/test-generation.md`
+4. Declare the new page object as a fixture in `tests/fixtures.ts` so specs can inject it
 
-- Use typed `Locator` properties with `getByTestId()`, `getByRole()`, or `getByLabel()`
-- Use the `testIdAttribute` from `playwright.config.ts` (currently `data-test`)
-- Expose atomic methods: `fill()`, `submit()`, a combined action method (e.g. `login()`)
-- Do not add methods for interactions not needed by the current test case
+Page objects MUST be placed in a domain subfolder under `tests/pages/` — never at the flat root.
+Examples: `tests/pages/auth/`, `tests/pages/checkout/`, `tests/pages/cart/`
 
-### 5.4 Generate the Test File
+If extending an existing page object:
 
-Create `tests/<group>/<kebab-case-scenario>.spec.ts`:
+1. Use MCP to confirm the new element's `data-test` attribute before adding it
+2. Add the new locator property and method — do not alter existing methods
+
+**Selector priority order (strict):**
+
+1. `page.getByTestId('<data-test-value>')`
+2. `page.getByRole('<role>', { name: '<accessible-name>' })`
+3. `page.getByLabel('<label-text>')`
+4. `page.getByText('<visible-text>', { exact: true })`
+5. `page.locator('<css-selector>')` — only when none of the above applies
+
+### 5d. Spec file
+
+Create `tests/<group>/<scenario-name>.spec.ts` following this exact structure:
 
 ```ts
 // spec: specs/<feature>.plan.md
 // seed: tests/seed.spec.ts
-import { test, expect } from '../fixtures';
-import { <PageObject> } from '../pages/<page-name>.page';
+import { test, expect, urlPatterns } from '../fixtures';
 import { <data> } from '../data/<domain>';
 
-test('<kebab-case-scenario>', async ({ page }) => {
-  const <po> = new <PageObject>(page);
-  // Actions and assertions mapped from spec steps
+test.describe('<FeatureGroup>', () => {
+  test('<scenario-name> @smoke', async ({ page, <pageObjectFixture> }) => {
+    // Page objects injected via fixtures — never instantiate with new XPage(page).
+    // Use urlPatterns.xxx for URL assertions.
+    // step comments map 1:1 to plan steps
+  });
 });
 ```
 
+For auth tests that test the login flow, add inside the describe block:
+
+```ts
+test.use({ storageState: { cookies: [], origins: [] } });
+```
+
+This clears the project-level storageState so the test starts at the unauthenticated login page.
+
 Rules:
 
-- Import `test` and `expect` from `../fixtures` (not from `@playwright/test` directly)
-- One test per file
-- Use page object methods, not raw `page.fill()` / `page.click()` calls
-- Use test data from `tests/data/` — no hardcoded strings in the test body
-- Tag smoke tests with `@smoke` in the test name where appropriate
-- No arbitrary `page.waitForTimeout()` — use `expect(...).toBeVisible()` or `toHaveText()`
-
-### 5.5 Start Seed in Debug CLI Mode
-
-```bash
-npm run test:seed:debug
-# Wait for: "Debugging Instructions" and session name tw-XXXX
-```
-
-### 5.6 Attach and Explore via playwright-cli
-
-```bash
-npx playwright-cli attach tw-XXXX
-playwright-cli resume
-playwright-cli snapshot   # verify current page state matches seed
-```
-
-Navigate through the test scenario interactively to:
-
-- Confirm locators match actual DOM (`getByTestId`, `getByRole`, etc.)
-- Observe exact error messages or text for assertions
-- Correct any selector mismatches before running the full test
-
-Stop the background test when done:
-
-```bash
-playwright-cli close
-```
-
-### 5.7 Run the Test
-
-```bash
-npm run test:e2e -- tests/<group>/<kebab-case-scenario>.spec.ts
-```
+- Import `test`, `expect`, and `urlPatterns` from `'../fixtures'` — never from `'@playwright/test'`
+- One `test(...)` per file; always wrap in `test.describe`
+- Do not call `page.goto(...)` — the fixture already navigates to `baseUrl`
+- For authenticated tests, storageState is already applied via the project config
+- No `page.waitForTimeout()` — use web-first assertions instead
+- Tag critical happy-path tests with `@smoke`
 
 ---
 
-## Phase 6 — Validate and Heal
+## Phase 6 — Optional MCP Exploration
 
-### 6.1 Evaluate Results
+Use Playwright MCP when:
 
-- **All tests pass** → emit success summary (Phase 7)
-- **Test fails** → proceed to heal loop (Phase 6.2)
-- **TypeScript errors** → fix type errors first, then re-run
+- The `data-test` attribute value for a new element is unknown
+- The exact assertion text needs to be confirmed from the live app
+- A test is failing due to a selector mismatch and the DOM needs re-inspection
+- Page flow produces unexpected redirects
 
-### 6.2 Heal Loop (max 3 iterations)
+See `references/mcp-exploration.md` for the exact MCP tool sequence.
 
-For each failing test:
+MCP is optional for cases where all selectors and assertion text are already
+known from existing page objects and spec files.
 
-1. Read the error message and stack trace
-2. Attach to a new debug CLI session:
-   ```bash
-   npm run test:seed:debug
-   npx playwright-cli attach tw-XXXX
-   ```
-3. Navigate to the failing action and inspect the element:
-   ```bash
-   playwright-cli snapshot
-   playwright-cli eval "el => el.getAttribute('data-test')" e5
-   ```
-4. Fix the test file (selector, assertion text, timing)
-5. Re-run the test
-6. If still failing after 3 iterations: document the blocker and stop
+---
 
-### 6.3 Reconcile the Spec
+## Phase 7 — Run and Heal
 
-After healing, update `specs/<feature>.plan.md` if any steps or expected outcomes
-changed during diagnosis (e.g. actual error text differed from what was specified).
+### 7a. Initial run
 
-### 6.4 Run TypeScript Typecheck
+Run the new test in isolation:
+
+```bash
+npm run test:e2e -- tests/<group>/<scenario>.spec.ts
+```
+
+Or use the `runTests` tool with the specific file path.
+
+If all tests pass, proceed to Phase 8.
+
+### 7b. Heal loop (max 3 iterations)
+
+If the test fails, follow the heal loop in `references/healing.md`:
+
+1. Read the exact error message and line
+2. Classify the root cause (selector / assertion text / timing / data / logic)
+3. Use MCP exploration to diagnose selector or text issues
+4. Apply one targeted fix
+5. Re-run the failing test
+6. Repeat up to 3 times
+
+After a fix, always run:
 
 ```bash
 npm run typecheck
 ```
 
-Fix all TypeScript errors before marking a test case complete.
+After 3 failed iterations, stop and emit a BLOCKER report (see `references/healing.md`).
+
+### 7c. Full suite check
+
+After the targeted test passes, run the full suite to detect regressions:
+
+```bash
+npm run test:e2e
+```
+
+If any previously-passing test now fails, it is a regression introduced by this
+implementation — fix it before proceeding.
 
 ---
 
-## Phase 7 — Success Summary
+## Phase 8 — Typecheck
 
-For each test case processed, emit:
+```bash
+npm run typecheck
+```
+
+All TypeScript errors must be resolved. Do not mark a task complete with type errors.
+
+---
+
+## Phase 9 — Return Results
+
+For each test case, emit this block:
 
 ```
 TEST CASE: <scenario-name>
-Decision: SKIP | EXTEND | CREATE
-Spec: <path>
-Test: <path or N/A>
-Page Objects: <created/reused list>
-Test Data: <created/updated/reused list>
-Run Status: PASSED | FAILED | HEALED
-Heal Iterations: <0-3>
-Typecheck: PASS | FAIL
-Notes: <duplicates, blockers, or reconciliation updates>
+Decision:   SKIP | EXTEND | CREATE
+Plan:       specs/<feature>.plan.md  (created | updated | skipped)
+Spec:       tests/<group>/<scenario>.spec.ts  (created | skipped)
+Page Objects:
+  - tests/pages/<name>.page.ts  (created | extended | reused)
+Test Data:
+  - tests/data/<domain>.ts  (created | updated | reused)
+MCP Used:   YES (reason) | NO
+Run Status: PASSED | HEALED (N iterations) | FAILED (blocker)
+Typecheck:  PASS | FAIL
+Notes:      <reconciliation changes, blockers, reuse decisions>
 ```
 
-After all test cases, emit:
+After all cases:
 
 ```
 SUMMARY
-Total Cases: <n>
-Created: <n>
+Total:    <n>
+Created:  <n>
 Extended: <n>
-Skipped: <n>
-Failed: <n>
-```
-
----
-
-## Phase 8 — Repeat for Next Test Case
-
-After Phase 7, return to **Phase 1** with the next test case from the user's input.
-Do not reload project context (Phase 0) — it is shared for the entire session.
-Process all test cases before returning a final summary.
-
----
-
-## Rules and Constraints
-
-- **One test per `.spec.ts` file** — never combine multiple scenarios in one file
-- **Never use `page.waitForTimeout()`** — use web-first assertions instead
-- **Never hardcode test data in spec files** — always use `tests/data/`
-- **Always import from `../fixtures`** — not from `@playwright/test` directly
-- **Always run `npm run typecheck` after generating or editing any `.ts` file**
-- **Never create a Page Object method that isn't needed by the current test case**
-- **Prefer `getByTestId()` with `data-test` attribute** per `playwright.config.ts`
-- **Selector fallback order**: `getByTestId` → `getByRole` → `getByLabel` → `getByText` → CSS
-- **Never skip Phase 2 (duplicate check)** — always check before creating files
-
----
-
-## Project Layout Reference
-
-```
-playwright.config.ts          Configuration (baseURL, browsers, retries, reporters)
-tsconfig.json                 TypeScript strict mode, Node16 module resolution
-package.json                  Scripts: typecheck, test:e2e, test:seed:debug, cli
-
-tests/
-  fixtures.ts                 Extended test fixture (navigates to baseUrl)
-  seed.spec.ts                Seed test for playwright-cli attach workflow
-  support/
-    env.ts                    Environment config (BASE_URL)
-  data/
-    users.ts                  Centralized test data (users.standard, etc.)
-  pages/
-    login.page.ts             LoginPage page object
-  auth/
-    should-login-standard-user.spec.ts   Example auth test
-
-specs/
-  saucedemo-auth.plan.md      Example plan file (official format)
-
-.claude/skills/playwright-cli/
-  SKILL.md                    Official Playwright CLI skill
-  references/
-    spec-driven-testing.md    Official plan→generate→heal workflow
-    test-generation.md        Code generation mechanics
-    healing.md                Heal loop details
-
-.github/
-  copilot-instructions.md     Always-on agent instructions
-  skills/
-    playwright-test-agent/SKILL.md        Playwright CLI skill wrapper
-    automate-test-case/SKILL.md           THIS FILE — full orchestration
-  prompts/
-    automate-test-cases.prompt.md         User-facing prompt entry point
-    generate-playwright-test.prompt.md    Single spec generation prompt
+Skipped:  <n>
+Healed:   <n>
+Failed:   <n>
 ```

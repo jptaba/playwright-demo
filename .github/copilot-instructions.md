@@ -1,94 +1,125 @@
-# Playwright CLI Skill Project Instructions
+# Playwright MCP Project Instructions
 
 ## Purpose
 
-This repository uses the official Playwright CLI skill workflow for planning, generating, and healing Playwright tests.
+This repository uses a Playwright Test + Playwright MCP workflow for planning, generating,
+running, and healing Playwright TypeScript tests. No Playwright CLI agent or planner/generator/
+healer extension is installed or needed — all those capabilities are implemented through the
+orchestration skill and Playwright MCP.
+
+---
 
 ## Automating Test Cases (primary entry point)
 
-When a user provides test cases (steps, Gherkin, or plain English), use the full intelligent pipeline:
+When a user provides test cases (steps, Gherkin, or plain English):
 
-If test cases are missing required actions/steps, expected outcomes, or cannot be parsed as steps, Gherkin, or plain English scenarios, stop and request clarification by listing the exact missing items and an example of the expected format.
+1. **Load the orchestration skill first:** `.github/skills/automate-test-case/SKILL.md`
+2. The skill is the single source of truth for all phase order, gates, and constraints.
+3. The user-facing prompt (`.github/prompts/automate-test-cases.prompt.md`) is a thin wrapper
+   that delegates to the skill.
 
-1. **Load the orchestration skill first**: `.github/skills/automate-test-case/SKILL.md`
-2. Use the user-facing prompt as a guide: `.github/prompts/automate-test-cases.prompt.md`
+**Preflight — confirm these exist before starting:**
 
-The orchestration skill is the **single source of truth** for phase order, decision gates,
-healing behavior, and constraints, and execution logic must follow it exactly. Prompt files
-should stay concise by referencing that skill instead of duplicating its full procedures.
-If the orchestration skill file is missing, incomplete, or invalid, return an error and halt.
-Required prerequisites are: `.github/skills/automate-test-case/SKILL.md`,
-`tests/seed.spec.ts`, `tests/fixtures.ts`, Playwright CLI availability, and required env
-values for this repo (for example `BASE_URL` when needed). If prerequisites are missing,
-attempt resolution by checking those paths and running documented setup scripts; if still
-unresolved, stop and return missing item(s), setup command(s) attempted, and failure output.
+- `.github/skills/automate-test-case/SKILL.md`
+- `tests/seed.spec.ts`
+- `tests/fixtures.ts`
 
-The pipeline covers these phases in order:
+If any prerequisite is missing, stop and report what is missing.
 
-1. Project context loading
-2. Duplicate detection
-3. Reuse analysis
-4. Plan
-5. Generate
-6. Explore (playwright-cli)
-7. Run
-8. Heal
-9. Typecheck
-10. Repeat for each test case
+**Pipeline phases (orchestrated by the skill):**
+
+| #   | Phase                                              |
+| --- | -------------------------------------------------- |
+| 0   | Load project context                               |
+| 1   | Parse input test cases                             |
+| 2   | Duplicate detection                                |
+| 3   | Reuse analysis                                     |
+| 4   | Decision gate (SKIP / EXTEND / CREATE)             |
+| 5   | Implement (plan → page objects → test data → spec) |
+| 6   | Optional Playwright MCP exploration                |
+| 7   | Run and heal (max 3 iterations)                    |
+| 8   | Typecheck                                          |
+| 9   | Return results per case + summary                  |
+
+---
+
+## MCP-Native Capabilities
+
+Playwright MCP (`.vscode/mcp.json`) replaces the interactive explore/snapshot/eval workflow:
+
+| Old CLI capability             | MCP replacement                                                                    |
+| ------------------------------ | ---------------------------------------------------------------------------------- |
+| `playwright-cli snapshot`      | `browser_snapshot` after `browser_navigate`                                        |
+| `playwright-cli eval <script>` | `browser_evaluate` with a JS expression                                            |
+| `playwright-cli attach`        | Step through `browser_click` / `browser_fill` interactively                        |
+| Selector healing               | `browser_snapshot` at failure state + `browser_evaluate` for `data-test` discovery |
+| Assertion text discovery       | `browser_evaluate` reading `element.textContent.trim()`                            |
+
+See `.github/skills/automate-test-case/references/mcp-exploration.md` for full usage guide.
+
+---
 
 ## Core Workflow (manual / single spec)
 
-1. Install and use official Playwright CLI skills.
-2. Create or update a spec file under specs/\*.plan.md.
-3. Start from TypeScript seed test via Playwright debug CLI mode.
-4. Use playwright-cli commands to explore, generate test code, and refine assertions.
-5. Run tests and heal failures using the official spec-driven workflow.
+1. Create or update a spec under `specs/*.plan.md` (see `references/plan-format.md`)
+2. Generate test code under `tests/**` using page objects and fixtures
+3. Use Playwright MCP if selector or assertion text discovery is needed
+4. Run tests with `npm run test:e2e`
+5. Heal failures using the heal loop (see `references/healing.md`)
+6. Run `npm run typecheck` — all errors must be resolved
+
+---
 
 ## Project Layout
 
-```
-playwright.config.ts          Configuration (baseURL = BASE_URL env, testIdAttribute = data-test)
-tsconfig.json                 TypeScript strict, Node16 module resolution
-tests/
-  fixtures.ts                 Extended fixture — navigates to baseUrl before each test
-  seed.spec.ts                Seed test for playwright-cli attach
-  support/env.ts              Environment config
-  data/users.ts               Centralized test data
-  pages/                      Page Object classes (*.page.ts)
-  auth/                       Auth test specs
-specs/                        Official plan files (*.plan.md)
-.claude/skills/playwright-cli/ Official Playwright CLI skills
-.github/skills/               Copilot orchestration skills
-.github/prompts/              User-facing prompt entry points
-```
+| Path                                 | Purpose                                                                                      |
+| ------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `playwright.config.ts`               | Config — `baseURL = BASE_URL env`, `testIdAttribute = data-test`, setup + 3 browser projects |
+| `tsconfig.json`                      | TypeScript strict, Node16 module resolution                                                  |
+| `tests/fixtures.ts`                  | Extended fixture — navigates to `baseUrl`; injects `loginPage`, `checkoutPage`               |
+| `tests/seed.spec.ts`                 | Minimal smoke anchor test                                                                    |
+| `tests/support/env.ts`               | Centralised env config (`BASE_URL`)                                                          |
+| `tests/support/config.ts`            | Framework constants — `authStorageState`, `urlPatterns`                                      |
+| `tests/setup/`                       | Global setup — generates `artifacts/auth/standard-user.json`                                 |
+| `tests/helpers/`                     | Shared utilities (`captureEvidence`, `scrollToBottom`)                                       |
+| `tests/data/`                        | Test data (`users.ts`, `checkout.ts`, …)                                                     |
+| `tests/pages/auth/`                  | Auth page objects (`login.page.ts`)                                                          |
+| `tests/pages/checkout/`              | Checkout page objects (`checkout.page.ts`)                                                   |
+| `tests/auth/`                        | Auth spec files                                                                              |
+| `tests/checkout/`                    | Checkout spec files                                                                          |
+| `specs/`                             | Official plan files (`*.plan.md`)                                                            |
+| `.github/skills/automate-test-case/` | Orchestration skill + references                                                             |
+| `.github/prompts/`                   | User-facing prompt entry points                                                              |
+| `.github/workflows/`                 | CI pipeline (`e2e.yml`)                                                                      |
+| `.vscode/mcp.json`                   | Playwright MCP server config                                                                 |
+| `.vscode/extensions.json`            | Recommended VS Code extensions                                                               |
+| `.vscode/settings.json`              | Workspace editor settings                                                                    |
+| `artifacts/mcp/`                     | MCP output (snapshots, screenshots)                                                          |
+| `artifacts/auth/`                    | Cached browser auth state (gitignored)                                                       |
 
-## Required Tools and Config
-
-- Playwright test runner from @playwright/test
-- Playwright CLI from @playwright/cli
-- Official skill files installed under .claude/skills/playwright-cli
+---
 
 ## Authoring Rules
 
-Apply priorities in numeric order with strict dependency handling: finish all Priority 1
-tasks first, then Priority 2, then Priority 3, then Priority 4.
+Apply in priority order — higher numbers must not override lower numbers:
 
-| Priority | Category                | Rule                                                                                                            |
-| -------- | ----------------------- | --------------------------------------------------------------------------------------------------------------- |
-| 1        | Workflow and validation | Follow orchestration workflow and run `npm run typecheck` after TypeScript edits.                               |
-| 2        | Test structure          | Import `test` and `expect` from `tests/fixtures.ts` and keep one test per `.spec.ts` file.                      |
-| 3        | Selectors and timing    | Use selector order `getByTestId` → `getByRole` → `getByLabel` → `getByText`; never use `page.waitForTimeout()`. |
-| 4        | Data management         | Never hardcode test data in spec files; use `tests/data/`.                                                      |
+| Priority | Category       | Rule                                                                                               |
+| -------- | -------------- | -------------------------------------------------------------------------------------------------- |
+| 1        | Workflow       | Follow orchestration skill phases; run `npm run typecheck` after every TypeScript edit             |
+| 2        | Test structure | Import `test` and `expect` from `tests/fixtures.ts`; one test per `.spec.ts` file                  |
+| 3        | Selectors      | Selector order: `getByTestId` → `getByRole` → `getByLabel` → `getByText`; never `waitForTimeout()` |
+| 4        | Data           | Never hardcode test data in spec files; all data lives in `tests/data/`                            |
 
-Conflict examples:
-
-- If workflow requires restructuring generated tests before validation, complete workflow/typecheck first (Priority 1), then apply structure cleanup (Priority 2).
-- If a stable test id is unavailable, follow selector fallback order from Priority 3 and keep data sourcing from Priority 4 unchanged.
-- If a Priority 2 task depends on a Priority 1 task, complete the Priority 1 task first and document the dependency in the result summary.
+---
 
 ## Automation References
 
-- Orchestration skill: .github/skills/automate-test-case/SKILL.md
-- Official spec-driven guide: .claude/skills/playwright-cli/references/spec-driven-testing.md
-- Playwright CLI: https://github.com/microsoft/playwright-cli
-- Playwright test docs: https://playwright.dev/docs/intro
+| Reference             | Path                                                              |
+| --------------------- | ----------------------------------------------------------------- |
+| Orchestration skill   | `.github/skills/automate-test-case/SKILL.md`                      |
+| MCP exploration guide | `.github/skills/automate-test-case/references/mcp-exploration.md` |
+| Plan file format      | `.github/skills/automate-test-case/references/plan-format.md`     |
+| Test generation rules | `.github/skills/automate-test-case/references/test-generation.md` |
+| Heal loop guide       | `.github/skills/automate-test-case/references/healing.md`         |
+| MCP server config     | `.vscode/mcp.json`                                                |
+| Playwright test docs  | https://playwright.dev/docs/intro                                 |

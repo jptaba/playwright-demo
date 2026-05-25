@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test';
-import type { CheckoutCustomer, CheckoutItem } from '../data/checkout';
+import type { CheckoutCustomer, CheckoutItem } from '../../data/checkout';
 
 export class CheckoutPage {
   private readonly cartLink: Locator;

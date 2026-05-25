@@ -4,94 +4,118 @@ This repository is a TypeScript-first Playwright automation demo.
 It combines:
 
 - Official Playwright Test capabilities (projects, retries, reporting, traces, videos)
-- Official Playwright CLI skill workflow (plan -> generate -> heal)
+- Repository spec-driven workflow (plan → generate → run → heal)
 - Playwright MCP for optional agentic browser exploration
+- Global auth setup with `storageState` for fast, isolated tests
 
 ## Core Principles
 
 - Type-safe tests and fixtures using strict TypeScript
 - Deterministic, resilient locators and assertions
 - Spec-driven authoring for scalable agent-assisted coverage
+- Auth state cached once per run — no login duplication across test suite
 - Rich diagnostics for CI and local triage
 
 ## Tech Stack
 
-- @playwright/test
-- @playwright/cli
+- `@playwright/test`
+- `@playwright/mcp`
 - TypeScript (strict)
 - dotenv for environment configuration
 
 ## Project Layout
 
-- specs: plan files in official spec-driven format (\*.plan.md)
-- tests/fixtures.ts: shared typed fixtures
-- tests/seed.spec.ts: seed entrypoint for debug CLI attach sessions
-- tests/auth: scenario tests
-- tests/pages: page objects
-- tests/data: centralized test data
-- tests/support: framework support utilities
-- playwright.config.ts: enterprise runtime configuration
-- .claude/skills/playwright-cli: official installed skill pack
-- .vscode/mcp.json: Playwright MCP server config
+```
+playwright.config.ts        Runtime config (baseURL, testIdAttribute, setup + 3 browser projects)
+tsconfig.json               TypeScript strict, Node16 module resolution
+tests/
+  fixtures.ts               Shared typed fixtures (page, loginPage, checkoutPage, urlPatterns)
+  seed.spec.ts              Seed/smoke anchor test
+  setup/
+    global.setup.ts         Global auth setup — writes artifacts/auth/standard-user.json
+  support/
+    env.ts                  Centralised env config (BASE_URL)
+    config.ts               Framework constants (authStorageState, urlPatterns)
+  helpers/
+    index.ts                Shared utilities (captureEvidence, scrollToBottom)
+  data/
+    users.ts                Centralised user test data
+    checkout.ts             Centralised checkout test data
+  pages/
+    auth/
+      login.page.ts         LoginPage page object
+    checkout/
+      checkout.page.ts      CheckoutPage page object
+  auth/
+    should-login-standard-user.spec.ts
+  checkout/
+    should-complete-checkout-with-single-item.spec.ts
+    should-readd-removed-item-with-second-item.spec.ts
+specs/                      Plan files (*.plan.md)
+.github/
+  copilot-instructions.md   Always-on Copilot agent instructions
+  prompts/                  User-facing Copilot prompt entry points
+  skills/
+    automate-test-case/     Orchestration skill + references
+  workflows/
+    e2e.yml                 GitHub Actions CI pipeline (sharded)
+.vscode/
+  mcp.json                  Playwright MCP server config
+  extensions.json           Recommended VS Code extensions
+  settings.json             Workspace editor settings
+artifacts/                  Gitignored — all test output
+  auth/                     Cached browser auth state
+  html-report/              Playwright HTML report
+  reports/                  JUnit + JSON reports
+  test-results/             Trace, screenshots, videos
+  mcp/                      MCP exploration screenshots
+```
 
 ## Quick Start
 
 ```bash
 npm install
 npm run setup:browsers
-npm run setup:cli-skills
 npm run typecheck
 npm run test:e2e
 ```
 
 ## Environment
 
-Copy .env.example to .env and set values as needed.
+Copy `.env.example` to `.env` and set values as needed.
 
-- BASE_URL: app URL used by fixtures and config
+- `BASE_URL`: app URL used by fixtures and config (default: `https://www.saucedemo.com`)
 
-## Official Spec-Driven Agent Workflow
+## Auth State Pattern
 
-1. Create or update specs/<feature>.plan.md
-2. Start debug seed:
+The `setup` project in `playwright.config.ts` runs first and saves authenticated
+browser state to `artifacts/auth/standard-user.json`. All browser projects then
+load that state — tests start at the authenticated inventory page without repeating login.
 
-```bash
-npm run test:seed:debug
-```
+Auth tests that test the login flow use `test.use({ storageState: { cookies: [], origins: [] } })`
+to bypass cached auth and test the real login flow.
 
-3. Attach Playwright CLI to the printed session name:
+## Test Tags
 
-```bash
-npx playwright-cli attach tw-XXXX
-```
-
-4. Generate test steps/assertions into TypeScript test files.
-5. Run all tests:
-
-```bash
-npm run test:e2e
-```
-
-6. Heal failures using:
-
-- .claude/skills/playwright-cli/references/spec-driven-testing.md
+| Tag      | Use                                                    |
+| -------- | ------------------------------------------------------ |
+| `@smoke` | Critical happy path — runs in `npm run test:e2e:smoke` |
 
 ## Common Commands
 
-- npm run typecheck
-- npm run test:e2e
-- npm run test:e2e:smoke
-- npm run test:e2e:ci
-- npm run test:e2e:ui
-- npm run cli -- snapshot
-- npm run cli -- show --annotate
+```bash
+npm run typecheck           # TypeScript validation
+npm run test:e2e            # Full suite (all browsers)
+npm run test:e2e:smoke      # @smoke tests only
+npm run test:e2e:ci         # CI mode (retries, parallel)
+npm run test:e2e:ui         # Playwright UI mode
+npm run test:e2e:debug      # Debug mode
+npm run test:e2e:report     # Open last HTML report
+```
 
-## Example
+## Spec-Driven Agent Workflow
 
-- Plan: specs/saucedemo-auth.plan.md
-- Scenario test: tests/auth/should-login-standard-user.spec.ts
-
-## Integration Notes
-
-- Primary generation/heal loop uses official Playwright CLI skills.
-- Playwright MCP in .vscode/mcp.json remains available for exploratory automation or specialized agent loops.
+1. Create or update `specs/<feature>.plan.md`
+2. Generate tests using `.github/prompts/automate-test-cases.prompt.md`
+3. Optionally use Playwright MCP exploration to validate selectors/assertions
+4. Run and heal with the orchestration skill in `.github/skills/automate-test-case/SKILL.md`

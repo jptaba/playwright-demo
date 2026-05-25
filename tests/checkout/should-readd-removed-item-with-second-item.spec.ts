@@ -1,36 +1,29 @@
 // spec: specs/saucedemo-checkout.plan.md
 // seed: tests/seed.spec.ts
-import { expect, test } from '../fixtures';
-import { users } from '../data/users';
+import { expect, test, urlPatterns } from '../fixtures';
 import { checkoutItem, checkoutSecondItem } from '../data/checkout';
-import { LoginPage } from '../pages/login.page';
-import { CheckoutPage } from '../pages/checkout.page';
 
-test('should-readd-removed-item-with-second-item', async ({ page }) => {
-  const loginPage = new LoginPage(page);
-  const checkoutPage = new CheckoutPage(page);
+test.describe('Checkout', () => {
+  test('should-readd-removed-item-with-second-item', async ({
+    page,
+    checkoutPage,
+  }) => {
+    // Authenticated via storageState; fixture navigates to baseUrl → inventory.
+    await checkoutPage.addItemToCart(checkoutItem);
+    await checkoutPage.assertCartBadgeCount(1);
 
-  await loginPage.fillCredentials(
-    users.standard.username,
-    users.standard.password,
-  );
-  await loginPage.submit();
-  await expect(page).toHaveURL(/\/inventory\.html/);
+    await checkoutPage.removeItemFromCart(checkoutItem);
+    await checkoutPage.assertCartBadgeHidden();
 
-  await checkoutPage.addItemToCart(checkoutItem);
-  await checkoutPage.assertCartBadgeCount(1);
+    await checkoutPage.addItemToCart(checkoutSecondItem);
+    await checkoutPage.assertCartBadgeCount(1);
 
-  await checkoutPage.removeItemFromCart(checkoutItem);
-  await checkoutPage.assertCartBadgeHidden();
+    await checkoutPage.addItemToCart(checkoutItem);
+    await checkoutPage.assertCartBadgeCount(2);
 
-  await checkoutPage.addItemToCart(checkoutSecondItem);
-  await checkoutPage.assertCartBadgeCount(1);
-
-  await checkoutPage.addItemToCart(checkoutItem);
-  await checkoutPage.assertCartBadgeCount(2);
-
-  await checkoutPage.openCart();
-  await expect(page).toHaveURL(/\/cart\.html/);
-  await checkoutPage.assertItemVisible(checkoutSecondItem.name);
-  await checkoutPage.assertItemVisible(checkoutItem.name);
+    await checkoutPage.openCart();
+    await expect(page).toHaveURL(urlPatterns.cart);
+    await checkoutPage.assertItemVisible(checkoutSecondItem.name);
+    await checkoutPage.assertItemVisible(checkoutItem.name);
+  });
 });
