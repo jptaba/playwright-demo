@@ -24,6 +24,7 @@ test.describe('Checkout', () => {
     await checkoutPage.assertItemVisible(checkoutItem.name);
 
     await checkoutPage.finishCheckout();
+    await expect(page).toHaveURL(urlPatterns.checkoutComplete);
     await checkoutPage.assertCheckoutComplete();
   });
 });

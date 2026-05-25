@@ -31,7 +31,12 @@ import { test, expect, urlPatterns } from '../fixtures';
 import { <data> } from '../data/<domain>';
 
 test.describe('<FeatureGroup>', () => {
-  test('<scenario-name> @smoke', async ({ page, <pageObjectFixture> }) => {
+  test('<scenario-name> @smoke', {
+    annotation: [
+      { type: 'story', description: '<JIRA-KEY>' },
+      { type: 'ac', description: '<acceptance-criteria-summary>' },
+    ],
+  }, async ({ page, <pageObjectFixture> }) => {
     // Page objects are injected via fixtures — never instantiate with new XPage(page).
     // step comments map 1:1 to plan steps.
     // Use urlPatterns.xxx instead of raw inline regex for URL assertions.
@@ -39,6 +44,8 @@ test.describe('<FeatureGroup>', () => {
   });
 });
 ```
+
+Omit the `annotation` block only when no Jira story ID was supplied.
 
 All spec files MUST use `test.describe(...)`. It is required for proper test organisation at scale.
 

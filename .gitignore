@@ -4,3 +4,5 @@ playwright-report/
 test-results/
 dist/
 .env
+# BDD generation output (not used — project uses plain Playwright)
+.features-gen/

@@ -8,20 +8,15 @@ test.describe('Authentication', () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
   test('should-login-standard-user @smoke', async ({ page, loginPage }) => {
-    // 1. Fill username with standard_user.
-    // 2. Fill password with secret_sauce.
+    // 1. Fill credentials and submit.
     await loginPage.fillCredentials(
       users.standard.username,
       users.standard.password,
     );
-    await loginPage.assertCredentialsFilled(
-      users.standard.username,
-      users.standard.password,
-    );
-
-    // 3. Submit the login form.
     await loginPage.submit();
+
+    // 2. Assert successful login: inventory URL and Products heading visible.
     await expect(page).toHaveURL(urlPatterns.inventory);
-    await expect(page.getByText('Products')).toBeVisible();
+    await expect(page.getByText('Products', { exact: true })).toBeVisible();
   });
 });

@@ -2,16 +2,17 @@
 
 ## Purpose
 
-This repository uses a Playwright Test + Playwright MCP workflow for planning, generating,
-running, and healing Playwright TypeScript tests. No Playwright CLI agent or planner/generator/
-healer extension is installed or needed — all those capabilities are implemented through the
-orchestration skill and Playwright MCP.
+This repository uses a Playwright Test + Playwright MCP workflow to automate test cases
+driven from Jira user stories and acceptance criteria. The full pipeline — planning, duplicate
+detection, code generation, MCP-assisted selector discovery, and heal-loop validation — is
+orchestrated through the skill and Playwright MCP. No Playwright CLI agent or separate
+planner/generator/healer extension is required.
 
 ---
 
 ## Automating Test Cases (primary entry point)
 
-When a user provides test cases (steps, Gherkin, or plain English):
+When a user provides a **Jira user story** (with acceptance criteria) or **test cases** (with steps and expected results), or a step list / plain English description:
 
 1. **Load the orchestration skill first:** `.github/skills/automate-test-case/SKILL.md`
 2. The skill is the single source of truth for all phase order, gates, and constraints.

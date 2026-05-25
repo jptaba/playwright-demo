@@ -73,21 +73,26 @@ Missing: <file paths if applicable>
 
 ## Phase 1 — Parse Input Test Cases
 
-Accepted input formats:
+Accepted input formats (in priority order):
 
-- Step list (numbered or bulleted)
-- Gherkin / BDD (`Given / When / Then`)
+- **Jira user story with acceptance criteria** — include the issue key, e.g., `PROJ-123`; the AI derives test cases from the AC
+- **Test cases** — one or more discrete test case definitions (title + steps + expected results), optionally tagged with a Jira key
+- Step list (numbered or bulleted) without a formal test case wrapper
 - Plain English scenario description
 
 For each test case, extract and record:
 
-1. **Feature area** — the functional domain (auth, checkout, cart, etc.)
-2. **Scenario name** — kebab-case, concise, describing the outcome
+1. **Story ID** — the Jira issue key if provided (e.g., `PROJ-123`); leave blank if not supplied
+2. **Feature area** — the functional domain (auth, checkout, cart, etc.)
+3. **Scenario name** — kebab-case, concise, describing the outcome
    - Examples: `should-login-standard-user`, `should-complete-checkout-with-single-item`
-3. **Target starting URL** — most cases start at `baseUrl` via the fixture
-4. **Test data entities** — users, products, form values, etc.
-5. **Actions** — ordered list of user interactions
-6. **Expected outcomes** — observable assertions after each action
+4. **Target starting URL** — most cases start at `baseUrl` via the fixture
+5. **Test data entities** — users, products, form values, etc.
+6. **Actions** — ordered list of user interactions
+7. **Expected outcomes** — observable assertions after each action
+
+> When the input is a **Jira user story**, derive one test case per acceptance criterion.
+> When the input is **test cases**, each case maps to one spec file; link back to the Jira key via `annotation` if one is present.
 
 If an input is ambiguous, infer the most likely intent from the existing codebase patterns
 and proceed. Do not stop to ask unless the ambiguity would cause incompatible file paths.
@@ -98,9 +103,10 @@ and proceed. Do not stop to ask unless the ambiguity would cause incompatible fi
 
 Before writing any file:
 
-1. Search `specs/*.plan.md` for scenario headings matching the parsed name or its synonyms
-2. Search `tests/**/*.spec.ts` for `test(` or `test.describe(` names matching the scenario
-3. Detect partial overlaps — identify which steps are already covered
+1. **If a story ID was provided**: search `tests/**/*.spec.ts` for `type: 'story'` annotations containing that ID — an exact match is an immediate DUPLICATE regardless of scenario name
+2. Search `specs/*.plan.md` for scenario headings matching the parsed name or its synonyms
+3. Search `tests/**/*.spec.ts` for `test(` or `test.describe(` names matching the scenario
+4. Detect partial overlaps — identify which steps are already covered
 
 **Exact duplicate found:**
 
@@ -219,13 +225,20 @@ import { test, expect, urlPatterns } from '../fixtures';
 import { <data> } from '../data/<domain>';
 
 test.describe('<FeatureGroup>', () => {
-  test('<scenario-name> @smoke', async ({ page, <pageObjectFixture> }) => {
+  test('<scenario-name> @smoke', {
+    annotation: [
+      { type: 'story', description: '<JIRA-KEY>' },
+      { type: 'ac', description: '<acceptance-criteria-summary>' },
+    ],
+  }, async ({ page, <pageObjectFixture> }) => {
     // Page objects injected via fixtures — never instantiate with new XPage(page).
     // Use urlPatterns.xxx for URL assertions.
     // step comments map 1:1 to plan steps
   });
 });
 ```
+
+Omit the `annotation` block only when no Jira story ID was supplied.
 
 For auth tests that test the login flow, add inside the describe block:
 

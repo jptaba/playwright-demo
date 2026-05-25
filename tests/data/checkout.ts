@@ -1,10 +1,16 @@
-export const checkoutCustomer = {
+// Explicit interface so AI-generated tests can construct new instances from
+// variable values without hitting literal-type assignment errors.
+export type CheckoutCustomer = {
+  firstName: string;
+  lastName: string;
+  postalCode: string;
+};
+
+export const checkoutCustomer: CheckoutCustomer = {
   firstName: 'Test',
   lastName: 'User',
   postalCode: '12345',
 } as const;
-
-export type CheckoutCustomer = typeof checkoutCustomer;
 
 export type CheckoutItem = {
   readonly name: string;
